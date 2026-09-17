@@ -17,6 +17,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val initialDark =
+            LaunchTheme.read(this).let {
+                it == "dark" ||
+                    it == "system" &&
+                        resources.configuration.uiMode and
+                            android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+                            android.content.res.Configuration.UI_MODE_NIGHT_YES
+            }
+        window.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(
+                if (initialDark) 0xFF1F1F1F.toInt() else 0xFFF2F0E3.toInt()
+            )
+        )
         enableEdgeToEdge()
         requestedPerson = intent.getStringExtra("personId")
         setContent {

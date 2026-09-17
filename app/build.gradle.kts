@@ -5,6 +5,14 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
+
+// Optional local/CI upload-key configuration. Never put credentials in source control.
+val uploadValues = listOf("CANDLR_KEYSTORE", "CANDLR_KEYSTORE_PASSWORD", "CANDLR_KEY_ALIAS", "CANDLR_KEY_PASSWORD")
+    .associateWith { providers.environmentVariable(it).orNull }
+val uploadSigningReady = uploadValues.values.all { !it.isNullOrBlank() }
+require(uploadValues.values.all { it.isNullOrBlank() } || uploadSigningReady) {
+    "Set all four CANDLR signing environment variables, or leave all unset for an unsigned bundle."
+}
 android {
     namespace = "app.candlr"
     compileSdk = 36
@@ -12,12 +20,22 @@ android {
         applicationId = "app.candlr"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    signingConfigs {
+        if (uploadSigningReady) create("upload") {
+            storeFile = rootProject.file(uploadValues.getValue("CANDLR_KEYSTORE")!!)
+            storePassword = uploadValues.getValue("CANDLR_KEYSTORE_PASSWORD")
+            keyAlias = uploadValues.getValue("CANDLR_KEY_ALIAS")
+            keyPassword = uploadValues.getValue("CANDLR_KEY_PASSWORD")
+        }
     }
     buildTypes {
         release {
+            isDebuggable = false
+            if (uploadSigningReady) signingConfig = signingConfigs.getByName("upload")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -30,9 +48,12 @@ android {
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     testOptions { unitTests.isIncludeAndroidResources = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+}
+tasks.register("verifyUploadSigning") {
+    doLast { check(uploadSigningReady) { "No upload key configured. Follow docs/PLAY_RELEASE.md before uploading to Play." } }
 }
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 dependencies {

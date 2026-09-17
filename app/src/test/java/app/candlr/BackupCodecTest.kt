@@ -7,6 +7,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BackupCodecTest {
+    @Test
+    fun exportRejectsDocumentsThatItsOwnReaderCannotRestore() {
+        val records =
+            (1..2200).map {
+                Birthday(name = "Person $it", month = 1, day = 1, notes = "x".repeat(4000))
+            }
+        val output = ByteArrayOutputStream()
+        val failure =
+            runCatching {
+                    BackupCodec.write(output, BackupContents(records, Preferences(), emptyMap()))
+                }
+                .exceptionOrNull()
+        assertEquals(BookError.BACKUP_TOO_LARGE, failure!!.bookError())
+        assertEquals(0, output.size())
+    }
+
     private val person =
         Birthday(
             name = "Maya Rao",

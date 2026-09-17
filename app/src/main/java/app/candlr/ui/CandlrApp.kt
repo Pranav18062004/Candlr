@@ -1,7 +1,6 @@
 package app.candlr.ui
 
 import android.Manifest
-import android.graphics.BitmapFactory
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
@@ -19,12 +18,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
@@ -99,7 +101,8 @@ fun CandlrApp(
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             vm.preferences { it.copy(reminders = granted) }
         }
-    val duration = if (book.preferences.reduceMotion) 0 else 200
+    val duration = if (LocalReduceMotion.current) 0 else 200
+    val pageStates = rememberSaveableStateHolder()
     BackHandler(selected != null && editor == null) { selected = null }
 
     Scaffold(
@@ -140,7 +143,7 @@ fun CandlrApp(
                 }
         },
         floatingActionButton = {
-            if (selected == null && tab != 2 && book.people.isNotEmpty())
+            if (selected == null && tab != 2 && (tab == 1 || book.people.isNotEmpty()))
                 ExtendedFloatingActionButton(
                     modifier =
                         Modifier.semantics {
@@ -161,78 +164,84 @@ fun CandlrApp(
                 )
         },
     ) { padding ->
-        Box(
-            Modifier.fillMaxSize().padding(padding).widthIn(max = 700.dp),
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            if (!book.loaded) LinearProgressIndicator(Modifier.fillMaxWidth())
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            if (!book.loaded) Spacer(Modifier.fillMaxSize())
             else
                 Crossfade(
+                    modifier = Modifier.widthIn(max = 700.dp).fillMaxSize().testTag("page-content"),
                     targetState = selected ?: "tab$tab",
                     animationSpec = tween(duration),
                     label = "page",
                 ) { page ->
-                    val person = book.people.firstOrNull { it.id == page }
-                    if (person != null)
-                        PersonScreen(
-                            person,
-                            today,
-                            book.preferences,
-                            onBack = { selected = null },
-                            onEdit = { editor = person.id },
-                            onFavorite = { vm.save(person.copy(favorite = !person.favorite)) {} },
-                            onDelete = {
-                                vm.delete(person) {
-                                    selected = null
-                                    scope.launch {
-                                        val result =
-                                            snack.showSnackbar(
-                                                context.getString(R.string.deleted),
-                                                context.getString(R.string.undo),
-                                                duration = SnackbarDuration.Long,
-                                            )
-                                        if (result == SnackbarResult.ActionPerformed)
-                                            vm.save(person) {}
+                    pageStates.SaveableStateProvider(page) {
+                        val person = book.people.firstOrNull { it.id == page }
+                        if (person != null)
+                            PersonScreen(
+                                person,
+                                today,
+                                book.preferences,
+                                onBack = { selected = null },
+                                onEdit = { editor = person.id },
+                                onFavorite = { vm.toggleFavorite(person.id) },
+                                onDelete = {
+                                    vm.delete(person) {
+                                        selected = null
+                                        scope.launch {
+                                            try {
+                                                val result =
+                                                    snack.showSnackbar(
+                                                        context.getString(R.string.deleted),
+                                                        context.getString(R.string.undo),
+                                                        duration = SnackbarDuration.Long,
+                                                    )
+                                                if (result == SnackbarResult.ActionPerformed)
+                                                    vm.save(person) {}
+                                            } finally {
+                                                vm.releaseUndo(person.id)
+                                            }
+                                        }
                                     }
-                                }
-                            },
-                        )
-                    else
-                        when (page) {
-                            "tab1" -> CalendarScreen(book, today) { selected = it.id }
-                            "tab2" ->
-                                SettingsScreen(
-                                    book.preferences,
-                                    busy,
-                                    recovery,
-                                    update = vm::preferences,
-                                    enableReminders = { enabled ->
-                                        if (enabled && Build.VERSION.SDK_INT >= 33)
-                                            notifications.launch(
-                                                Manifest.permission.POST_NOTIFICATIONS
+                                },
+                            )
+                        else
+                            when (page) {
+                                "tab1" -> CalendarScreen(book, today) { selected = it.id }
+                                "tab2" ->
+                                    SettingsScreen(
+                                        book.preferences,
+                                        busy,
+                                        recovery,
+                                        update = vm::preferences,
+                                        enableReminders = { enabled ->
+                                            if (enabled && Build.VERSION.SDK_INT >= 33)
+                                                notifications.launch(
+                                                    Manifest.permission.POST_NOTIFICATIONS
+                                                )
+                                            else vm.preferences { it.copy(reminders = enabled) }
+                                        },
+                                        export = {
+                                            export.launch("Candlr-${LocalDate.now()}.candlr")
+                                        },
+                                        restore = {
+                                            restore.launch(
+                                                arrayOf(
+                                                    "application/zip",
+                                                    "application/octet-stream",
+                                                    "*/*",
+                                                )
                                             )
-                                        else vm.preferences { it.copy(reminders = enabled) }
-                                    },
-                                    export = { export.launch("Candlr-${LocalDate.now()}.candlr") },
-                                    restore = {
-                                        restore.launch(
-                                            arrayOf(
-                                                "application/zip",
-                                                "application/octet-stream",
-                                                "*/*",
-                                            )
-                                        )
-                                    },
-                                    recover = vm::previewRecovery,
-                                )
-                            else ->
-                                UpcomingScreen(
-                                    book,
-                                    today,
-                                    onAdd = { editor = "new" },
-                                    onOpen = { selected = it.id },
-                                )
-                        }
+                                        },
+                                        recover = vm::previewRecovery,
+                                    )
+                                else ->
+                                    UpcomingScreen(
+                                        book,
+                                        today,
+                                        onAdd = { editor = "new" },
+                                        onOpen = { selected = it.id },
+                                    )
+                            }
+                    }
                 }
             if (busy)
                 LinearProgressIndicator(
@@ -247,11 +256,18 @@ fun CandlrApp(
         BirthdayEditor(
             person,
             busy,
-            onDismiss = { if (!busy) editor = null },
+            onDismiss = {
+                if (!busy) {
+                    editor = null
+                    vm.releaseDraft()
+                }
+            },
+            onDraftPhoto = vm::pinDraft,
             onPhoto = vm::photo,
         ) { saved ->
             vm.save(saved) {
                 editor = null
+                vm.releaseDraft()
                 message(context.getString(R.string.saved))
             }
         }
@@ -279,7 +295,7 @@ fun CandlrApp(
         AlertDialog(
             onDismissRequest = { vm.error.value = null },
             title = { Text(stringResource(R.string.error_title)) },
-            text = { Text(error!!) },
+            text = { Text(stringResource(error!!.resource)) },
             confirmButton = {
                 TextButton(onClick = { vm.error.value = null }) {
                     Text(stringResource(R.string.ok))
@@ -319,6 +335,7 @@ fun UpcomingScreen(
     onAdd: () -> Unit,
     onOpen: (Birthday) -> Unit,
 ) {
+    val reduced = LocalReduceMotion.current
     var query by rememberSaveable { mutableStateOf("") }
     var favorites by rememberSaveable { mutableStateOf(false) }
     var searching by rememberSaveable { mutableStateOf(false) }
@@ -430,7 +447,14 @@ fun UpcomingScreen(
                                 bottomStart = 8.dp,
                             ),
                         color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        modifier =
+                            Modifier.animateItem(
+                                    fadeInSpec = tween(if (reduced) 0 else 140),
+                                    placementSpec = tween(if (reduced) 0 else 200),
+                                    fadeOutSpec = tween(if (reduced) 0 else 100),
+                                )
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp),
                     ) {
                         Column(Modifier.padding(24.dp)) {
                             Row(
@@ -515,7 +539,15 @@ fun UpcomingScreen(
                         )
                     }
                     items(people, key = { it.id }) { person ->
-                        BirthdayRow(person, today, book.preferences) { onOpen(person) }
+                        Column(
+                            Modifier.animateItem(
+                                fadeInSpec = tween(if (reduced) 0 else 140),
+                                placementSpec = tween(if (reduced) 0 else 200),
+                                fadeOutSpec = tween(if (reduced) 0 else 100),
+                            )
+                        ) {
+                            BirthdayRow(person, today, book.preferences) { onOpen(person) }
+                        }
                     }
                 }
         }
@@ -527,33 +559,22 @@ fun awayLabel(person: Birthday, today: LocalDate, prefs: Preferences): String =
     when (val days = person.daysAway(today, prefs.leapMarch)) {
         0L -> stringResource(R.string.today)
         1L -> stringResource(R.string.tomorrow)
-        else -> stringResource(R.string.days_away, days)
+        else -> pluralStringResource(R.plurals.days_away, days.toInt(), days)
     }
 
 @Composable
 fun Avatar(person: Birthday, size: Int = 46) {
-    val context = LocalContext.current
+    val store = (LocalContext.current.applicationContext as CandlrApplication).photos
     val image by
-        produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, person.photo) {
-            value =
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                            person.photo
-                                ?.let {
-                                    (context.applicationContext as CandlrApplication)
-                                        .photos
-                                        .file(it)
-                                }
-                                ?.let {
-                                    BitmapFactory.decodeFile(
-                                        it.path,
-                                        BitmapFactory.Options().apply { inSampleSize = 2 },
-                                    )
-                                }
-                                ?.asImageBitmap()
+        key(person.photo) {
+            produceState(initialValue = store.cached(person.photo)?.asImageBitmap(), person.photo) {
+                val name = person.photo
+                if (name != null && value == null)
+                    value =
+                        withContext(Dispatchers.IO) {
+                            runCatching { store.load(name)?.asImageBitmap() }.getOrNull()
                         }
-                        .getOrNull()
-                }
+            }
         }
     Box(
         Modifier.size(size.dp)
@@ -632,7 +653,7 @@ fun PersonScreen(
         animateColorAsState(
             if (person.favorite) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,
-            tween(if (prefs.reduceMotion) 0 else 140),
+            tween(if (LocalReduceMotion.current) 0 else 140),
             label = "bookmark",
         )
     Column(
@@ -760,5 +781,5 @@ fun offsetLabel(day: Int): String =
     when (day) {
         0 -> stringResource(R.string.on_day)
         1 -> stringResource(R.string.day_before)
-        else -> stringResource(R.string.advance_days, day)
+        else -> pluralStringResource(R.plurals.advance_days, day.toInt(), day)
     }

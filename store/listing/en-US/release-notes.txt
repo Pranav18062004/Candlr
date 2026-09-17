@@ -1,0 +1,1 @@
+The first Candlr release: a private birthday book with Paper and Evening themes, bookmarks, a month calendar, gentle local reminders, and manual backup and restore. No accounts, ads, or cloud connection.

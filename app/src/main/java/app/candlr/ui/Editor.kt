@@ -33,6 +33,7 @@ fun BirthdayEditor(
     busy: Boolean,
     onDismiss: () -> Unit,
     onPhoto: (Uri, (String) -> Unit) -> Unit,
+    onDraftPhoto: (String?) -> Unit,
     onSave: (Birthday) -> Unit,
 ) {
     val key = person?.id ?: "new"
@@ -47,14 +48,44 @@ fun BirthdayEditor(
     var photo by rememberSaveable(key) { mutableStateOf(person?.photo) }
     var reminderMask by rememberSaveable(key) { mutableIntStateOf(person?.reminderMask ?: -1) }
     var monthMenu by remember { mutableStateOf(false) }
-    var validation by rememberSaveable(key) { mutableStateOf<String?>(null) }
+    var validation by rememberSaveable(key) { mutableStateOf<BookError?>(null) }
+    val initialMonth = rememberSaveable(key) { person?.month ?: LocalDate.now().monthValue }
+    val dirty =
+        name != (person?.name ?: "") ||
+            month != initialMonth ||
+            day != (person?.day?.toString() ?: "") ||
+            year != (person?.year?.toString() ?: "") ||
+            notes != (person?.notes ?: "") ||
+            favorite != (person?.favorite ?: false) ||
+            photo != person?.photo ||
+            reminderMask != (person?.reminderMask ?: -1)
+    var confirmDiscard by rememberSaveable { mutableStateOf(false) }
+    // SheetState retains its confirmation callback. Read current state inside that callback.
+    val currentDirty by rememberUpdatedState(dirty)
+    val currentBusy by rememberUpdatedState(busy)
+    val currentDismiss by rememberUpdatedState(onDismiss)
+    fun requestDismiss() {
+        if (!currentBusy) {
+            if (currentDirty) confirmDiscard = true else currentDismiss()
+        }
+    }
+    LaunchedEffect(photo) { onDraftPhoto(photo) }
     val picker =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri != null) onPhoto(uri) { photo = it }
         }
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        onDismissRequest = ::requestDismiss,
+        sheetState =
+            rememberModalBottomSheetState(
+                skipPartiallyExpanded = true,
+                confirmValueChange = { target ->
+                    if (target == SheetValue.Hidden && (currentBusy || currentDirty)) {
+                        if (!currentBusy) confirmDiscard = true
+                        false
+                    } else true
+                },
+            ),
         containerColor = MaterialTheme.colorScheme.background,
     ) {
         Column(
@@ -109,16 +140,27 @@ fun BirthdayEditor(
                 style = MaterialTheme.typography.titleMedium,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.weight(1.8f)) {
-                    OutlinedButton(
-                        onClick = { monthMenu = true },
+                ExposedDropdownMenuBox(
+                    expanded = monthMenu,
+                    onExpandedChange = { if (!busy) monthMenu = it },
+                    modifier = Modifier.weight(1.8f),
+                ) {
+                    OutlinedTextField(
+                        value = Month.of(month).getDisplayName(TextStyle.FULL, Locale.getDefault()),
+                        onValueChange = {},
+                        readOnly = true,
                         enabled = !busy,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+                        label = { Text(stringResource(R.string.month)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(monthMenu) },
+                        modifier =
+                            Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                        singleLine = true,
                         shape = RoundedCornerShape(12.dp),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = monthMenu,
+                        onDismissRequest = { monthMenu = false },
                     ) {
-                        Text(Month.of(month).getDisplayName(TextStyle.FULL, Locale.getDefault()))
-                    }
-                    DropdownMenu(expanded = monthMenu, onDismissRequest = { monthMenu = false }) {
                         Month.entries.forEach { m ->
                             DropdownMenuItem(
                                 text = {
@@ -206,7 +248,7 @@ fun BirthdayEditor(
             }
             if (validation != null)
                 Text(
-                    validation!!,
+                    stringResource(validation!!.resource),
                     Modifier.padding(top = 12.dp),
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -230,7 +272,7 @@ fun BirthdayEditor(
                         validation = null
                         onSave(birthday)
                     } catch (e: IllegalArgumentException) {
-                        validation = e.message
+                        validation = e.bookError()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
@@ -238,9 +280,35 @@ fun BirthdayEditor(
             ) {
                 Text(stringResource(R.string.save))
             }
-            TextButton(onClick = onDismiss, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+            TextButton(
+                onClick = ::requestDismiss,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }
     }
+    if (confirmDiscard)
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text(stringResource(R.string.discard_title)) },
+            text = { Text(stringResource(R.string.discard_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDiscard = false
+                        onDismiss()
+                    },
+                    enabled = !busy,
+                ) {
+                    Text(stringResource(R.string.discard))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) {
+                    Text(stringResource(R.string.keep_editing))
+                }
+            },
+        )
 }

@@ -14,9 +14,55 @@ import kotlinx.coroutines.withContext
 
 class PhotoStore(private val context: Context) {
     val directory = File(context.filesDir, "photos").apply { mkdirs() }
+    private val draft = context.getSharedPreferences("photo-draft", Context.MODE_PRIVATE)
+    private val undo = mutableMapOf<String, String>()
+    private val cache =
+        object : android.util.LruCache<String, Bitmap>(8 * 1024 * 1024) {
+            override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
+        }
+
+    fun cached(name: String?): Bitmap? = name?.let(cache::get)
+
+    // Keep full 512px sources: sharp at detail size, bounded to 8 MiB, shared by every avatar.
+    // Serialize cache misses so two composed copies of a person do not decode twice.
+    @Synchronized
+    fun load(name: String): Bitmap? =
+        cached(name) ?: BitmapFactory.decodeFile(file(name).path)?.also { cache.put(name, it) }
+
+    fun pinDraft(name: String?) {
+        draft.edit().putString("photo", name).commit()
+    }
+
+    @Synchronized
+    fun pinUndo(id: String, name: String?) {
+        if (name != null) undo[id] = name
+    }
+
+    @Synchronized
+    fun releaseUndo(id: String) {
+        undo.remove(id)
+    }
+
+    @Synchronized
+    fun prune(referenced: Set<String>) {
+        val keep = referenced + undo.values + listOfNotNull(draft.getString("photo", null))
+        directory.listFiles()?.forEach { candidate ->
+            if (
+                candidate.name !in keep &&
+                    (candidate.name.matches(Regex("[a-f0-9]{64}\\.jpg")) ||
+                        candidate.name.endsWith(".tmp"))
+            ) {
+                if (candidate.delete()) cache.remove(candidate.name)
+            }
+        }
+    }
+
+    fun clearCache() = cache.evictAll()
 
     fun file(name: String): File {
-        require(name.matches(Regex("[a-f0-9]{64}\\.jpg"))) { "Invalid photo name." }
+        require(name.matches(Regex("[a-f0-9]{64}\\.jpg"))) {
+            throw BookException(BookError.INVALID_PHOTO_NAME)
+        }
         return File(directory, name)
     }
 
@@ -26,7 +72,7 @@ class PhotoStore(private val context: Context) {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
             require(bounds.outWidth in 1..30000 && bounds.outHeight in 1..30000) {
-                "Choose a supported photo."
+                throw BookException(BookError.UNSUPPORTED_PHOTO)
             }
             var sample = 1
             while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1024) sample *= 2
@@ -37,7 +83,7 @@ class PhotoStore(private val context: Context) {
                         null,
                         BitmapFactory.Options().apply { inSampleSize = sample },
                     )
-                } ?: error("Could not open the photo.")
+                } ?: (throw BookException(BookError.OPEN_PHOTO))
             val orientation =
                 resolver.openInputStream(uri)?.use {
                     ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)
@@ -76,7 +122,16 @@ class PhotoStore(private val context: Context) {
                     out.toByteArray()
                 }
             val name = hash(bytes) + ".jpg"
-            file(name).writeBytes(bytes)
+            if (!file(name).exists()) {
+                val staged = File(directory, "$name.tmp")
+                staged.writeBytes(bytes)
+                java.nio.file.Files.move(
+                    staged.toPath(),
+                    file(name).toPath(),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                )
+            }
+            pinDraft(name)
             if (resized !== upright) resized.recycle()
             if (upright !== original) upright.recycle()
             original.recycle()

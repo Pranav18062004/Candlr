@@ -20,6 +20,20 @@ class CandlrApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        scope.launch { operations.withLock { runCatching { reminders.schedule() } } }
+        scope.launch {
+            operations.withLock {
+                LaunchTheme.save(
+                    this@CandlrApplication,
+                    (database.birthdays().preferences() ?: Preferences()).theme,
+                )
+                photos.prune(database.birthdays().all().mapNotNull { it.photo }.toSet())
+                runCatching { reminders.schedule() }
+            }
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        photos.clearCache()
     }
 }

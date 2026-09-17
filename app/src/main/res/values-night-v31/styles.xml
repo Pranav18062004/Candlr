@@ -1,6 +1,6 @@
 <resources>
     <style name="Theme.Candlr" parent="android:style/Theme.Material.NoActionBar">
-        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowDisablePreview">false</item>
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowBackground">#1F1F1F</item>

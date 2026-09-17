@@ -1,0 +1,23 @@
+Keep a little book of your people.
+
+Candlr is a quiet, offline place to remember birthdays. Its warm Paper and Evening themes feel at home beside a favorite book, with subtle motion and a simple, uncluttered layout.
+
+YOUR PEOPLE, CLOSE AT HAND
+Save names, birthdays, optional birth years, photos, and personal notes. Bookmark people, search your book, and see what is coming up or browse by month.
+
+A GENTLE REMINDER
+Choose local birthday reminders on the day or 1, 3, or 7 days before. Set a reminder time and individual preferences for each person. Choose how to celebrate February 29 birthdays in other years.
+
+PRIVATE BY DESIGN
+No accounts. No ads. No purchases. No analytics. Candlr has no internet permission, and your book stays in the app's private storage on your device.
+
+BACK UP ON YOUR TERMS
+Create a backup wherever Android's file picker lets you save it. Restore by merging with your current book or replacing it, with a local recovery copy of the previous book. Backups include names, notes, photos, and preferences and are not password protected. If you choose a cloud file provider, that provider handles any transfer; Candlr itself does not connect to the cloud.
+
+COMFORTABLE TO USE
+Choose Paper, Evening, or your system theme. Reduce motion in the app or use Android's animation settings. Candlr supports Android 8.0 and newer.
+
+Reminders are approximate: Android battery saving and device restrictions may delay delivery. After force-stopping the app, open it again to resume reminders. Save a backup before changing phones or uninstalling.
+
+Made by Pranav Nambiar.
+Support: pranavnambiar12345@gmail.com

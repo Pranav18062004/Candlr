@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], application = android.app.Application::class)
+@Config(sdk = [26, 28], application = android.app.Application::class)
 class ReminderDeliveryTest {
     private lateinit var db: CandlrDatabase
     private lateinit var scheduler: ReminderScheduler
@@ -59,5 +59,29 @@ class ReminderDeliveryTest {
         db.birthdays().putPreferences(Preferences(reminders = false))
         scheduler.deliver(now)
         assertEquals(0, db.birthdays().delivered("${person.id}:2026-09-16:0"))
+    }
+
+    @Test
+    fun advanceNotificationsUseSingularAndPlural() = runBlocking {
+        for (offset in listOf(1, 3, 7)) {
+            db.birthdays()
+                .put(
+                    person.copy(
+                        day = 16 + offset,
+                        reminderMask = 1 shl reminderOffsets.indexOf(offset),
+                    )
+                )
+            scheduler.deliver(now)
+            val notification =
+                context
+                    .getSystemService(NotificationManager::class.java)
+                    .activeNotifications
+                    .single()
+                    .notification
+            assertEquals(
+                "Maya has a birthday in $offset " + if (offset == 1) "day" else "days",
+                notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT).toString(),
+            )
+        }
     }
 }

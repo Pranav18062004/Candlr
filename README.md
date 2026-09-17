@@ -38,7 +38,7 @@ On macOS/Linux use `./gradlew` for the same tasks.
 
 - Debug APK: `app/build/outputs/apk/debug/app-debug.apk`.
 - Optimized preview APK: `app/build/outputs/apk/preview/app-preview.apk`.
-- Production build: `:app:assembleRelease` produces an unsigned artifact until the owner configures release signing.
+- Play bundle: `:app:bundleRelease` produces an unsigned AAB until upload-key environment variables are configured. See [Play release instructions](docs/PLAY_RELEASE.md).
 
 **Preview uses the local Android debug certificate and is for evaluation.** Keep a manual backup before changing signing certificates or uninstalling. No private signing key is committed.
 
@@ -70,6 +70,8 @@ See [docs/BACKUP_FORMAT.md](docs/BACKUP_FORMAT.md). Files are intended for the o
 ## Validation
 
 See [docs/VALIDATION.md](docs/VALIDATION.md) for executed checks and remaining device validation. Performance numbers must identify the device and build type; emulator startup observations are not physical-phone benchmarks.
+
+The September review fixes are recorded in [docs/REVIEW_FIXES.md](docs/REVIEW_FIXES.md). Store copy and original graphics are in `store/`; a public-hosting-ready privacy policy is in `docs/privacy/`. A GitHub Actions workflow runs unit tests, lint, unsigned release builds, and the package audit; it does not publish releases. Run `python scripts/audit_package.py --sdk <Android-SDK-path>` after building to audit offline permissions, SDK levels, release flags, and 64-bit ELF alignment.
 
 ## Design
 

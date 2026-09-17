@@ -3,6 +3,7 @@ package app.candlr.ui
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -103,9 +104,13 @@ private val BookType =
 @Composable
 fun CandlrTheme(preferences: Preferences, content: @Composable () -> Unit) {
     val dark = preferences.theme == "dark" || preferences.theme == "system" && isSystemInDarkTheme()
-    MaterialTheme(
-        colorScheme = if (dark) Evening else Paper,
-        typography = BookType,
-        content = content,
-    )
+    CompositionLocalProvider(
+        LocalReduceMotion provides (preferences.reduceMotion || systemMotionDisabled())
+    ) {
+        MaterialTheme(
+            colorScheme = if (dark) Evening else Paper,
+            typography = BookType,
+            content = content,
+        )
+    }
 }

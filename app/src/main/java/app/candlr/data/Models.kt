@@ -26,25 +26,29 @@ data class Birthday(
 ) {
     fun validate(today: LocalDate = LocalDate.now()) {
         require(runCatching { UUID.fromString(id).toString() == id }.getOrDefault(false)) {
-            "Invalid birthday identifier."
+            throw BookException(BookError.INVALID_ID)
         }
-        require(name.isNotBlank() && name.length <= 120) { "Enter a name of 1–120 characters." }
-        require(notes.length <= 4000) { "Notes must be 4,000 characters or fewer." }
-        require(reminderMask in -1..15) { "Invalid reminder setting." }
-        require(runCatching { MonthDay.of(month, day) }.isSuccess) { "Choose a valid birthday." }
+        require(name.isNotBlank() && name.length <= 120) {
+            throw BookException(BookError.INVALID_NAME)
+        }
+        require(notes.length <= 4000) { throw BookException(BookError.NOTES_TOO_LONG) }
+        require(reminderMask in -1..15) { throw BookException(BookError.INVALID_REMINDER) }
+        require(runCatching { MonthDay.of(month, day) }.isSuccess) {
+            throw BookException(BookError.INVALID_DATE)
+        }
         val birthYear = year
         if (birthYear != null) {
-            require(birthYear in 1..today.year) { "Enter a valid birth year." }
+            require(birthYear in 1..today.year) { throw BookException(BookError.INVALID_YEAR) }
             require(
                 runCatching { LocalDate.of(birthYear, month, day) }
                     .getOrNull()
                     ?.let { !it.isAfter(today) } == true
             ) {
-                "Birth date must be a real date in the past or today."
+                throw BookException(BookError.FUTURE_DATE)
             }
         }
         require(photo == null || photo.matches(Regex("[a-f0-9]{64}\\.jpg"))) {
-            "Invalid photo reference."
+            throw BookException(BookError.INVALID_PHOTO_REFERENCE)
         }
     }
 }
@@ -69,7 +73,7 @@ data class Preferences(
                 minute in 0..59 &&
                 reminderMask in 1..15
         ) {
-            "Invalid backup preferences."
+            throw BookException(BookError.INVALID_PREFERENCES)
         }
     }
 }

@@ -1,38 +1,43 @@
 # Validation record
 
-Date: 2026-09-16. Host: Windows 11, JDK 17. Emulator: Android 16 / API 36, x86_64, 1080 × 2400, density 420, software graphics. The emulator was in airplane mode for the passing UI checks.
+Date: 17 September 2026. Host: Windows, JDK 17. Emulator: Android 16 / API 36, x86_64, software graphics, airplane mode. These are release-candidate checks; physical-device and Play approval gates remain below.
 
 ## Automated checks
 
-- 13 birthday/date tests: today, year rollover, unknown birth years, leap-day policies, invalid dates, future dates, personal reminder overrides, and advance reminders crossing New Year.
-- 9 backup-format tests: Unicode/settings round trip, unsafe archive paths, future versions, truncation, oversized data, duplicate IDs, missing/damaged photos, and same-name people remaining distinct.
-- 4 Room restore tests: idempotent merge, explicit conflict policy, full replacement and recovery, and invalid-photo failure preserving the current book.
-- 3 reminder delivery tests: selected-time boundary, global disable, and delivery deduplication.
-- 2 Android UI tests: adding/saving a birthday, activity recreation, search, theme changes, calendar/settings navigation, accessible add action, and editor opening.
-- Android lint passes with no errors. Remaining warnings concern newer dependency versions, plural/localization suggestions, unused copy, and an unnecessary API qualifier. Dependencies are intentionally pinned to a compatible toolchain rather than auto-updated.
+- **53 JVM checks passed.** Includes 13 birthday/date cases, 10 backup-codec cases, and 15 Android storage/resource/reminder cases each executed under Robolectric API 26 and API 28. Covers leap dates, year rollover, validation, bounded archives, restore conflicts/recovery, notification singular/plural wording, full-resolution cache reuse, photo cleanup with draft/undo protection, and oversized export rejection before loading photos.
+- **9 distinct Android UI tests passed on API 36.** The core eight ran together; the added offline information-screen test and updated screenshot journey also passed. Covers add/save/recreation/search, retained tab state/calendar selection, rapid queued bookmarks, silent resume, dirty-editor scrim/Back/Cancel guarding, draft recreation, content width/centering, and live system/in-app motion settings.
+- **Tablet checks passed:** width/centering assertion and screenshot journey at 1600 dp wide. Content remains centered and capped at 700 dp.
+- **Large-text journey passed:** 360 dp-wide phone configuration at 1.5x font scale, with screenshots reviewed. Long editor content scrolls; Month and Day have matching outlines and heights.
+- **Lint:** zero errors, zero PluralsCandidate warnings, zero MonochromeLauncherIcon warnings. Remaining 21 warnings concern newer dependencies/toolchain, intentional synchronous local-preference writes, Kotlin convenience suggestions, and unused copy. No blanket suppression or baseline hides the reported problems.
+- Whitespace/diff checks passed.
 
-The JVM tests use Robolectric API 28 where Android services/storage are required. They are not proof of manufacturer alarm behavior on a physical phone.
+Robolectric API 26 exercises Android 8 service/storage behavior in simulation; it is not phone installation or performance testing. The GitHub Actions workflow is configured but is not claimed as a completed hosted CI run.
 
-## Visual review
+## Visual and runtime review
 
-Reviewed the real Android UI in paper/evening themes, populated and empty upcoming views, calendar, settings, and birthday editor. The review found and fixed an unlabeled floating add button after navigation and default purple switch surfaces. The test fixtures are fictional and only exist in instrumentation tests; the shipped app starts empty.
+Reviewed Paper and Evening, upcoming, calendar, settings, editor, tablet width, and enlarged text. Calendar selection is circular and Today has an independent outline when another date is selected. Month and Day share field styling. Screenshot people are fictional test fixtures and are not seeded in the shipped app.
 
-Screenshots are produced under `artifacts/screenshots/candlr-qa/` after pulling `/sdcard/Download/candlr-qa` from the test emulator.
+The optimized APK installed over the debug-signed evaluation installation and launched successfully. With the phone in light mode, selecting Evening and force-stopping/relaunching preserved the dark launch background and content. Eight sampled launch screenshots contained no paper background. These samples are evidence from this emulator run, not exhaustive frame timing or physical-device performance measurements. The opposite Paper/system-dark combination was also checked.
 
-## Offline audit
+An early screenshot run captured an emulator System UI ANR overlay. It was cleared and clean captures were taken; early images are not used as release screenshots. No Candlr AndroidRuntime crash was observed in the final optimized launch checks.
 
-The merged preview manifest requests notification permission, boot-completed delivery, and AndroidX's signature-protected receiver permission. It has no INTERNET, network-state, contacts, or broad-storage permission. Automatic backup is disabled with explicit cloud/device-transfer exclusions. Automatic EmojiCompat font initialization is removed. No cloud, analytics, advertisement, or network client SDK is used by the app.
+Local QA images are in artifacts/screenshots/. Selected clean phone images are in store/screenshots/phone/.
 
-## Packaging and performance
+## Offline and package audit
 
-The optimized preview uses R8, resource shrinking, and dependency-supplied baseline profiles. The delivered APK is 1,414,166 bytes (about 1.4 MB). Its APK v2 signature verifies, and the optimized APK installed and launched successfully on the API 36 emulator with no AndroidRuntime crash logged. The fresh-install empty screen was visually checked. It uses the local debug signing certificate for evaluation; production signing is not configured. The checksum is in `artifacts/BUILD_INFO.txt`.
+scripts/audit_package.py checks the actual optimized APK and merged manifest. Capabilities are notifications, boot-completed delivery, and AndroidX's app-scoped signature receiver permission. There is no INTERNET, network-state, contacts, broad-storage, or exact-alarm permission. Automatic backup is disabled with explicit cloud/device-transfer exclusions. Automatic EmojiCompat font initialization is removed. No cloud, analytics, advertisement, or network-client SDK is used.
 
-## Remaining validation
+The 64-bit native graphics-path libraries have 16 KiB-aligned ELF load segments. APK zip alignment and APK v2 signature verification passed. Bundletool 1.18.3 accepted the release AAB. These checks validate package structure/alignment, not all behavior on a physical 16 KiB-page-size device.
 
-- Physical-phone cold start, frame timing/jank, memory, and battery measurements against the provisional budgets.
-- Android 8 and Android 15 device execution; the minSdk is 26 and lint checks API compatibility, but the available emulator is API 36.
-- Manufacturer idle/reboot restrictions, manual clock/time-zone changes, and notification permission changes on real phones.
-- Full TalkBack traversal, large-font/small-screen visual review, photo provider variations, and external document-provider export/restore failures.
-- Process-kill fault injection during restore and custom app journey baseline profiles.
+The optimized evaluation APK is **1,507,530 bytes** (about 1.51 MB), using R8, resource shrinking, and dependency-supplied baseline profiles. It uses the local debug certificate. The production AAB is deliberately **unsigned** because the owner has not created an upload key. The signing preflight correctly rejects the missing-key configuration. Checksums are in artifacts/BUILD_INFO.txt and artifacts/package-audit.json.
 
-This is a working evaluation build, not a claim that every production-readiness gate in the execution plan has been completed.
+## Gates before public production launch
+
+- Owner-created/verified Play personal account, upload key, live public privacy-policy URL, required closed testing, and Google production-access/review approval.
+- Physical-phone cold start, frame timing/jank, memory, search at 5,000 records, and battery measurements against the provisional budgets.
+- Android 8 and Android 15 device installation coverage beyond the available API 36 emulator and API 26/28 Robolectric checks.
+- Manufacturer idle/reboot restrictions, clock/time-zone changes, notification permission/channel changes, and unused-app restrictions on real phones.
+- Full TalkBack traversal, very large text (including 2x), additional screen sizes/foldables, real photo/document-provider variations, and low-storage failures.
+- Process-kill fault injection during restore and custom app-journey baseline profiles.
+
+The repository and artifacts are prepared for release testing. These remaining gates must not be represented as completed. See [PLAY_RELEASE.md](PLAY_RELEASE.md) for owner steps.

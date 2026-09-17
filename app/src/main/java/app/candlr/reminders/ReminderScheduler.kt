@@ -123,7 +123,13 @@ class ReminderScheduler(private val context: Context, private val db: CandlrData
                 due.map {
                     if (it.offset == 0)
                         context.getString(R.string.notification_today, it.person.name)
-                    else context.getString(R.string.notification_advance, it.person.name, it.offset)
+                    else
+                        context.resources.getQuantityString(
+                            R.plurals.notification_advance,
+                            it.offset,
+                            it.person.name,
+                            it.offset,
+                        )
                 }
             val notification =
                 NotificationCompat.Builder(context, "birthdays")

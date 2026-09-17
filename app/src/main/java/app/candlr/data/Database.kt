@@ -13,6 +13,9 @@ interface BirthdayDao {
 
     @Upsert suspend fun put(birthday: Birthday)
 
+    @Query("UPDATE birthdays SET favorite = NOT favorite, updatedAt = :now WHERE id = :id")
+    suspend fun toggleFavorite(id: String, now: Long = System.currentTimeMillis())
+
     @Upsert suspend fun putAll(birthdays: List<Birthday>)
 
     @Query("DELETE FROM birthdays WHERE id = :id") suspend fun delete(id: String)

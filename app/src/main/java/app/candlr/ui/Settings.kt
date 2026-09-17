@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import app.candlr.BuildConfig
 import app.candlr.R
 import app.candlr.data.*
 import java.time.LocalTime
@@ -37,6 +39,7 @@ fun SettingsScreen(
     recover: () -> Unit,
 ) {
     val context = LocalContext.current
+    var information by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var allowed by remember {
         mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
     }
@@ -144,8 +147,10 @@ fun SettingsScreen(
                 FilterChip(
                     selected = prefs.reminderMask and bit != 0,
                     onClick = {
-                        val next = prefs.reminderMask xor bit
-                        if (next != 0) update { it.copy(reminderMask = next) }
+                        update {
+                            val next = it.reminderMask xor bit
+                            if (next == 0) it else it.copy(reminderMask = next)
+                        }
                     },
                     enabled = !busy,
                     label = { Text(offsetLabel(offset)) },
@@ -236,13 +241,31 @@ fun SettingsScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
         )
+        TextButton(onClick = { information = R.string.privacy_title to R.string.privacy_body }) {
+            Text(stringResource(R.string.privacy_title))
+        }
+        TextButton(
+            onClick = { information = R.string.reminder_help_title to R.string.reminder_help_body }
+        ) {
+            Text(stringResource(R.string.reminder_help_title))
+        }
+        TextButton(onClick = { information = R.string.licenses_title to R.string.licenses_body }) {
+            Text(stringResource(R.string.licenses_title))
+        }
+        androidx.compose.foundation.text.selection.SelectionContainer {
+            Text(
+                stringResource(R.string.developer_contact),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
         Text(
-            stringResource(R.string.version),
+            stringResource(R.string.version, BuildConfig.VERSION_NAME),
             Modifier.padding(top = 24.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelMedium,
         )
     }
+    information?.let { (title, body) -> InformationDialog(title, body) { information = null } }
 }
 
 @Composable
@@ -316,8 +339,16 @@ fun RestoreDialog(
                 Text(
                     stringResource(
                         R.string.restore_summary,
-                        contents.birthdays.size,
-                        contents.photos.size,
+                        pluralStringResource(
+                            R.plurals.birthday_count,
+                            contents.birthdays.size,
+                            contents.birthdays.size,
+                        ),
+                        pluralStringResource(
+                            R.plurals.photo_count,
+                            contents.photos.size,
+                            contents.photos.size,
+                        ),
                     )
                 )
                 Text(
@@ -327,7 +358,11 @@ fun RestoreDialog(
                 )
                 if (conflicts > 0) {
                     Text(
-                        stringResource(R.string.restore_conflicts, conflicts),
+                        pluralStringResource(
+                            R.plurals.restore_conflicts,
+                            conflicts.toInt(),
+                            conflicts,
+                        ),
                         Modifier.padding(top = 16.dp),
                         style = MaterialTheme.typography.bodyMedium,
                     )

@@ -13,7 +13,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], application = android.app.Application::class)
+@Config(sdk = [26, 28], application = android.app.Application::class)
 class RestoreTransactionTest {
     private lateinit var db: CandlrDatabase
     private lateinit var service: BackupService
