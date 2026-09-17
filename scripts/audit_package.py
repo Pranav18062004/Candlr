@@ -13,6 +13,8 @@ root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument("--sdk", required=True)
 parser.add_argument("--apk", type=Path, default=root / "app/build/outputs/apk/preview/app-preview.apk")
+parser.add_argument("--variant", choices=["preview", "release"], default="preview")
+parser.add_argument("--certificate-sha256", help="Required owner certificate fingerprint for production APK verification")
 args = parser.parse_args()
 sdk = Path(args.sdk)
 aapt = next((sdk / "build-tools/35.0.0").glob("aapt2*"))
@@ -23,7 +25,7 @@ assert set(permissions) <= allowed, f"Unexpected permissions: {set(permissions) 
 assert "minSdkVersion:'26'" in badging or "sdkVersion:'26'" in badging
 assert "targetSdkVersion:'36'" in badging
 assert "application-debuggable" not in badging
-manifest = root / "app/build/intermediates/merged_manifests/preview/processPreviewManifest/AndroidManifest.xml"
+manifest = root / f"app/build/intermediates/merged_manifests/{args.variant}/process{args.variant.title()}Manifest/AndroidManifest.xml"
 ns = "{http://schemas.android.com/apk/res/android}"
 app = ET.parse(manifest).getroot().find("application")
 assert app.get(ns + "allowBackup") == "false"
@@ -47,11 +49,23 @@ with ZipFile(args.apk) as package:
 bundle = root / "app/build/outputs/bundle/release/app-release.aab"
 with ZipFile(bundle) as archive:
     signed = any(name.upper().endswith((".RSA", ".DSA", ".EC")) and name.startswith("META-INF/") for name in archive.namelist())
+certificate = None
+if args.variant == "release":
+    assert args.certificate_sha256, "Production audit requires the owner's expected certificate SHA-256"
+    signer = sdk / "build-tools/35.0.0" / ("apksigner.bat" if __import__('os').name == 'nt' else "apksigner")
+    verification = subprocess.check_output([str(signer), "verify", "--print-certs", str(args.apk)], text=True)
+    assert "CN=Android Debug" not in verification, "Debug certificate cannot be used for production"
+    matches = re.findall(r"Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)", verification)
+    expected = args.certificate_sha256.replace(":", "").lower()
+    assert matches == [expected], "APK certificate does not match the owner fingerprint"
+    assert signed, "Production AAB is unsigned"
+    certificate = expected
 report = {"apk": args.apk.name, "bytes": args.apk.stat().st_size,
           "sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(), "permissions": permissions,
           "minSdk": 26, "targetSdk": 36, "automaticBackup": False, "debuggable": False,
           "native64BitLoadAlignments": alignments, "releaseBundleSigned": signed,
-          "note": "Preview is debug-signed for evaluation. An unsigned bundle needs an upload key before submission."}
+          "certificateSha256": certificate,
+          "note": "Owner certificate verified." if certificate else "Preview is debug-signed for evaluation. An unsigned bundle needs an upload key before submission."}
 out = root / "artifacts/package-audit.json"
 out.parent.mkdir(exist_ok=True)
 out.write_text(json.dumps(report, indent=2) + "\n")

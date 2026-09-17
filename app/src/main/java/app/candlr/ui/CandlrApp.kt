@@ -257,17 +257,14 @@ fun CandlrApp(
             person,
             busy,
             onDismiss = {
-                if (!busy) {
-                    editor = null
-                    vm.releaseDraft()
-                }
+                editor = null
+                vm.releaseDraft()
             },
             onDraftPhoto = vm::pinDraft,
             onPhoto = vm::photo,
-        ) { saved ->
+        ) { saved, close ->
             vm.save(saved) {
-                editor = null
-                vm.releaseDraft()
+                close()
                 message(context.getString(R.string.saved))
             }
         }

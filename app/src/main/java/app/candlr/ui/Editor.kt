@@ -2,6 +2,7 @@ package app.candlr.ui
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +26,7 @@ import java.time.Month
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -34,7 +36,7 @@ fun BirthdayEditor(
     onDismiss: () -> Unit,
     onPhoto: (Uri, (String) -> Unit) -> Unit,
     onDraftPhoto: (String?) -> Unit,
-    onSave: (Birthday) -> Unit,
+    onSave: (Birthday, () -> Unit) -> Unit,
 ) {
     val key = person?.id ?: "new"
     var id by rememberSaveable(key) { mutableStateOf(person?.id ?: UUID.randomUUID().toString()) }
@@ -64,28 +66,39 @@ fun BirthdayEditor(
     val currentDirty by rememberUpdatedState(dirty)
     val currentBusy by rememberUpdatedState(busy)
     val currentDismiss by rememberUpdatedState(onDismiss)
+    var closing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val sheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { target ->
+                if (target == SheetValue.Hidden && !closing && (currentBusy || currentDirty)) {
+                    if (!currentBusy) confirmDiscard = true
+                    false
+                } else true
+            },
+        )
+    fun close() {
+        if (closing) return
+        closing = true
+        scope.launch {
+            sheetState.hide()
+            currentDismiss()
+        }
+    }
     fun requestDismiss() {
         if (!currentBusy) {
-            if (currentDirty) confirmDiscard = true else currentDismiss()
+            if (currentDirty) confirmDiscard = true else close()
         }
     }
     LaunchedEffect(photo) { onDraftPhoto(photo) }
     val picker =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
             if (uri != null) onPhoto(uri) { photo = it }
         }
     ModalBottomSheet(
         onDismissRequest = ::requestDismiss,
-        sheetState =
-            rememberModalBottomSheetState(
-                skipPartiallyExpanded = true,
-                confirmValueChange = { target ->
-                    if (target == SheetValue.Hidden && (currentBusy || currentDirty)) {
-                        if (!currentBusy) confirmDiscard = true
-                        false
-                    } else true
-                },
-            ),
+        sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
     ) {
         Column(
@@ -116,11 +129,20 @@ fun BirthdayEditor(
                     64,
                 )
                 Column(Modifier.padding(start = 12.dp)) {
-                    TextButton(enabled = !busy, onClick = { picker.launch("image/*") }) {
+                    TextButton(
+                        enabled = !busy && !closing,
+                        onClick = {
+                            picker.launch(
+                                PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                                )
+                            )
+                        },
+                    ) {
                         Text(stringResource(R.string.photo))
                     }
                     if (photo != null)
-                        TextButton(enabled = !busy, onClick = { photo = null }) {
+                        TextButton(enabled = !busy && !closing, onClick = { photo = null }) {
                             Text(stringResource(R.string.remove_photo))
                         }
                 }
@@ -131,7 +153,7 @@ fun BirthdayEditor(
                 Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.name)) },
                 singleLine = true,
-                enabled = !busy,
+                enabled = !busy && !closing,
                 shape = RoundedCornerShape(12.dp),
             )
             Text(
@@ -149,7 +171,7 @@ fun BirthdayEditor(
                         value = Month.of(month).getDisplayName(TextStyle.FULL, Locale.getDefault()),
                         onValueChange = {},
                         readOnly = true,
-                        enabled = !busy,
+                        enabled = !busy && !closing,
                         label = { Text(stringResource(R.string.month)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(monthMenu) },
                         modifier =
@@ -181,7 +203,7 @@ fun BirthdayEditor(
                     label = { Text(stringResource(R.string.day)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    enabled = !busy,
+                    enabled = !busy && !closing,
                     shape = RoundedCornerShape(12.dp),
                 )
             }
@@ -192,7 +214,7 @@ fun BirthdayEditor(
                 label = { Text(stringResource(R.string.year_optional)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                enabled = !busy,
+                enabled = !busy && !closing,
                 shape = RoundedCornerShape(12.dp),
             )
             OutlinedTextField(
@@ -203,7 +225,7 @@ fun BirthdayEditor(
                 placeholder = { Text(stringResource(R.string.notes_hint)) },
                 minLines = 3,
                 maxLines = 6,
-                enabled = !busy,
+                enabled = !busy && !closing,
                 shape = RoundedCornerShape(12.dp),
             )
             Row(
@@ -216,7 +238,7 @@ fun BirthdayEditor(
                 Switch(
                     checked = favorite,
                     onCheckedChange = { favorite = it },
-                    enabled = !busy,
+                    enabled = !busy && !closing,
                     modifier = Modifier.semantics { contentDescription = bookmarkLabel },
                 )
             }
@@ -225,13 +247,13 @@ fun BirthdayEditor(
                 FilterChip(
                     selected = reminderMask == -1,
                     onClick = { reminderMask = -1 },
-                    enabled = !busy,
+                    enabled = !busy && !closing,
                     label = { Text(stringResource(R.string.default_reminders)) },
                 )
                 FilterChip(
                     selected = reminderMask == 0,
                     onClick = { reminderMask = 0 },
-                    enabled = !busy,
+                    enabled = !busy && !closing,
                     label = { Text(stringResource(R.string.off)) },
                 )
                 reminderOffsets.forEachIndexed { index, offset ->
@@ -241,7 +263,7 @@ fun BirthdayEditor(
                         onClick = {
                             reminderMask = if (reminderMask < 0) bit else reminderMask xor bit
                         },
-                        enabled = !busy,
+                        enabled = !busy && !closing,
                         label = { Text(offsetLabel(offset)) },
                     )
                 }
@@ -253,7 +275,7 @@ fun BirthdayEditor(
                     color = MaterialTheme.colorScheme.error,
                 )
             Button(
-                enabled = !busy,
+                enabled = !busy && !closing,
                 onClick = {
                     val birthday =
                         Birthday(
@@ -270,7 +292,7 @@ fun BirthdayEditor(
                     try {
                         birthday.validate()
                         validation = null
-                        onSave(birthday)
+                        onSave(birthday, ::close)
                     } catch (e: IllegalArgumentException) {
                         validation = e.bookError()
                     }
@@ -282,7 +304,7 @@ fun BirthdayEditor(
             }
             TextButton(
                 onClick = ::requestDismiss,
-                enabled = !busy,
+                enabled = !busy && !closing,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.cancel))
@@ -298,9 +320,9 @@ fun BirthdayEditor(
                 TextButton(
                     onClick = {
                         confirmDiscard = false
-                        onDismiss()
+                        close()
                     },
-                    enabled = !busy,
+                    enabled = !busy && !closing,
                 ) {
                     Text(stringResource(R.string.discard))
                 }

@@ -5,9 +5,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,10 +17,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.candlr.BookState
@@ -37,6 +42,18 @@ fun CalendarScreen(book: BookState, today: LocalDate, onOpen: (Birthday) -> Unit
     val month = YearMonth.parse(monthValue)
     val selected = LocalDate.parse(selectedValue)
     val reduced = LocalReduceMotion.current
+    val dayStyle = MaterialTheme.typography.bodyLarge
+    val measuredDay =
+        rememberTextMeasurer()
+            .measure("28", style = dayStyle.copy(fontWeight = FontWeight.Bold))
+            .size
+    // Android scales line height relative to the font size, not independently as 25sp.
+    // Measure actual typography so nonlinear large-font scaling cannot clip the dot.
+    val daySize =
+        with(LocalDensity.current) {
+            maxOf(48.dp, measuredDay.height.toDp() + 20.dp, measuredDay.width.toDp() + 16.dp)
+        }
+    val rowHeight = daySize + 8.dp
     val firstDay = WeekFields.of(Locale.getDefault()).firstDayOfWeek
     val grouped =
         remember(book.people, month, book.preferences.leapMarch) {
@@ -103,65 +120,48 @@ fun CalendarScreen(book: BookState, today: LocalDate, onOpen: (Birthday) -> Unit
                             it.occurrence(visibleMonth.year, book.preferences.leapMarch)
                         }
                     }
-                Column(Modifier.padding(horizontal = 12.dp)) {
-                    Row {
-                        repeat(7) { index ->
-                            Text(
-                                firstDay
-                                    .plus(index.toLong())
-                                    .getDisplayName(TextStyle.SHORT, Locale.getDefault()),
-                                Modifier.weight(1f).padding(vertical = 10.dp),
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val gridWidth = maxOf(maxWidth, daySize * 7)
+                    Column(Modifier.horizontalScroll(rememberScrollState()).width(gridWidth)) {
+                        Row {
+                            repeat(7) { index ->
+                                Text(
+                                    firstDay
+                                        .plus(index.toLong())
+                                        .getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                    Modifier.weight(1f).padding(vertical = 10.dp),
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                    }
-                    repeat((leading + visibleMonth.lengthOfMonth() + 6) / 7) { week ->
-                        Row(Modifier.fillMaxWidth()) {
-                            repeat(7) { column ->
-                                val number = week * 7 + column - leading + 1
-                                if (number !in 1..visibleMonth.lengthOfMonth())
-                                    Spacer(Modifier.weight(1f).height(52.dp))
-                                else {
-                                    val date = visibleMonth.atDay(number)
-                                    val count = grouped[date].orEmpty().size
-                                    val isSelected = date == selected
-                                    val label =
-                                        (if (date == today) stringResource(R.string.today) + ", "
-                                        else "") +
-                                            date.format(
-                                                DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
-                                            ) +
-                                            ", " +
-                                            pluralStringResource(
-                                                R.plurals.birthday_count,
-                                                count.toInt(),
-                                                count,
-                                            )
-                                    Box(
-                                        Modifier.weight(1f).height(52.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
+                        repeat((leading + visibleMonth.lengthOfMonth() + 6) / 7) { week ->
+                            Row(Modifier.fillMaxWidth()) {
+                                repeat(7) { column ->
+                                    val number = week * 7 + column - leading + 1
+                                    if (number !in 1..visibleMonth.lengthOfMonth())
+                                        Spacer(Modifier.weight(1f).height(rowHeight))
+                                    else {
+                                        val date = visibleMonth.atDay(number)
+                                        val count = grouped[date].orEmpty().size
+                                        val isSelected = date == selected
+                                        val label =
+                                            (if (date == today)
+                                                stringResource(R.string.today) + ", "
+                                            else "") +
+                                                date.format(
+                                                    DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
+                                                ) +
+                                                ", " +
+                                                pluralStringResource(
+                                                    R.plurals.birthday_count,
+                                                    count.toInt(),
+                                                    count,
+                                                )
                                         Box(
-                                            Modifier.widthIn(max = 48.dp)
-                                                .fillMaxWidth()
-                                                .aspectRatio(1f)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    if (isSelected)
-                                                        MaterialTheme.colorScheme.primaryContainer
-                                                    else MaterialTheme.colorScheme.background
-                                                )
-                                                .then(
-                                                    if (date == today && !isSelected)
-                                                        Modifier.border(
-                                                            1.dp,
-                                                            MaterialTheme.colorScheme.primary,
-                                                            CircleShape,
-                                                        )
-                                                    else Modifier
-                                                )
+                                            Modifier.weight(1f)
+                                                .height(rowHeight)
                                                 .clickable { selectedValue = date.toString() }
                                                 .semantics {
                                                     contentDescription = label
@@ -169,33 +169,61 @@ fun CalendarScreen(book: BookState, today: LocalDate, onOpen: (Birthday) -> Unit
                                                 },
                                             contentAlignment = Alignment.Center,
                                         ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally
-                                            ) {
-                                                Text(
-                                                    number.toString(),
-                                                    fontWeight =
-                                                        if (date == today || isSelected)
-                                                            FontWeight.Bold
-                                                        else FontWeight.Normal,
-                                                    color =
+                                            Box(
+                                                Modifier.widthIn(max = daySize)
+                                                    .fillMaxWidth()
+                                                    .aspectRatio(1f)
+                                                    .testTag("day-circle-$date")
+                                                    .clip(CircleShape)
+                                                    .background(
                                                         if (isSelected)
                                                             MaterialTheme.colorScheme
-                                                                .onPrimaryContainer
-                                                        else MaterialTheme.colorScheme.onSurface,
-                                                )
-                                                Spacer(Modifier.height(3.dp))
-                                                Box(
-                                                    Modifier.size(4.dp)
-                                                        .background(
-                                                            if (count > 0)
-                                                                MaterialTheme.colorScheme.primary
-                                                            else
-                                                                androidx.compose.ui.graphics.Color
-                                                                    .Transparent,
-                                                            CircleShape,
-                                                        )
-                                                )
+                                                                .primaryContainer
+                                                        else MaterialTheme.colorScheme.background
+                                                    )
+                                                    .then(
+                                                        if (date == today && !isSelected)
+                                                            Modifier.border(
+                                                                1.dp,
+                                                                MaterialTheme.colorScheme.primary,
+                                                                CircleShape,
+                                                            )
+                                                        else Modifier
+                                                    ),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Column(
+                                                    horizontalAlignment =
+                                                        Alignment.CenterHorizontally
+                                                ) {
+                                                    Text(
+                                                        number.toString(),
+                                                        style = dayStyle,
+                                                        fontWeight =
+                                                            if (date == today || isSelected)
+                                                                FontWeight.Bold
+                                                            else FontWeight.Normal,
+                                                        color =
+                                                            if (isSelected)
+                                                                MaterialTheme.colorScheme
+                                                                    .onPrimaryContainer
+                                                            else MaterialTheme.colorScheme.onSurface,
+                                                    )
+                                                    Spacer(Modifier.height(3.dp))
+                                                    Box(
+                                                        Modifier.size(4.dp)
+                                                            .background(
+                                                                if (count > 0)
+                                                                    MaterialTheme.colorScheme
+                                                                        .primary
+                                                                else
+                                                                    androidx.compose.ui.graphics
+                                                                        .Color
+                                                                        .Transparent,
+                                                                CircleShape,
+                                                            )
+                                                    )
+                                                }
                                             }
                                         }
                                     }

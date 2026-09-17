@@ -220,7 +220,12 @@ fun SettingsScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (recovery)
+        if (recovery) {
+            Text(
+                stringResource(R.string.recovery_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             TextButton(
                 onClick = recover,
                 enabled = !busy,
@@ -228,6 +233,7 @@ fun SettingsScreen(
             ) {
                 Text(stringResource(R.string.recovery))
             }
+        }
         DividerSpace()
         BookIcon(Glyph.Candle, Modifier.size(32.dp), MaterialTheme.colorScheme.primary)
         Text(

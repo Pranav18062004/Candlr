@@ -44,4 +44,14 @@ graphic.resize((1024,500), Image.Resampling.LANCZOS).save(OUT / "feature-1024x50
 assert len((ROOT / "store/listing/en-US/title.txt").read_text().strip()) <= 30
 assert len((ROOT / "store/listing/en-US/short-description.txt").read_text().strip()) <= 80
 assert len((ROOT / "store/listing/en-US/full-description.txt").read_text().strip()) <= 4000
+screenshots = sorted((ROOT / "store/screenshots/phone").glob("*.png"))
+assert 4 <= len(screenshots) <= 8, "Keep four to eight phone screenshots for promotional eligibility"
+for path in screenshots:
+    with Image.open(path) as shot:
+        width, height = shot.size
+        assert shot.mode == "RGB", f"{path.name}: Play requires 24-bit PNG without alpha"
+        assert 320 <= min(width, height) and max(width, height) <= 3840, path.name
+        assert max(width, height) <= 2 * min(width, height), f"{path.name}: aspect ratio exceeds 2:1"
+        # Candlr deliberately meets the stronger promotional recommendation too.
+        assert width >= 1080 and height >= 1920 and width * 16 == height * 9, path.name
 print("Generated 512×512 icon and 1024×500 feature graphic; listing lengths verified.")

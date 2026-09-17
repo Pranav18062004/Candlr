@@ -34,6 +34,18 @@ class BookFlowTest {
     }
 
     @Test
+    fun calendarDaysHaveMinimumTouchTargets() {
+        compose.onNodeWithText("Calendar").performClick()
+        val label =
+            YearMonth.now().atDay(1).format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy"))
+        val node = compose.onNode(hasContentDescription(label, substring = true))
+        val density = compose.activity.resources.displayMetrics.density
+        val bounds = node.fetchSemanticsNode().boundsInRoot
+        Assert.assertTrue("Day width must be at least 48 dp", bounds.width / density >= 47.9f)
+        Assert.assertTrue("Day height must be at least 48 dp", bounds.height / density >= 47.9f)
+    }
+
+    @Test
     fun addBirthdaySurvivesRecreationAndCanBeFound() {
         compose.onNodeWithText("Add birthday").performClick()
         compose.onNodeWithText("Name").performTextInput("Maya Rao")
@@ -119,7 +131,11 @@ class BookFlowTest {
             .onNodeWithText(next.format(DateTimeFormatter.ofPattern("MMMM yyyy")))
             .assertIsDisplayed()
         compose.onNodeWithContentDescription(label).assertIsSelected()
-        val bounds = compose.onNodeWithContentDescription(label).fetchSemanticsNode().boundsInRoot
+        val bounds =
+            compose
+                .onNodeWithTag("day-circle-$date", useUnmergedTree = true)
+                .fetchSemanticsNode()
+                .boundsInRoot
         Assert.assertEquals(bounds.width, bounds.height, 1f)
     }
 

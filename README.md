@@ -78,3 +78,5 @@ The September review fixes are recorded in [docs/REVIEW_FIXES.md](docs/REVIEW_FI
 Base colors take inspiration from [Zen Browser's release notes](https://zen-browser.app/release-notes/): paper `#F2F0E3`, ink `#2E2E2E`, evening `#1F1F1F`, and ivory `#D1CFC0`. Olive accents and the candle/bookmark line work are specific to Candlr. No Birday code or assets were copied.
 
 The agreed product plan is in [EXECUTION_PLAN.md](EXECUTION_PLAN.md). Widgets, contact import, Birday import, encrypted backups, and additional event types are deferred.
+
+Production APK preparation and GitHub release steps: [docs/GITHUB_RELEASE.md](docs/GITHUB_RELEASE.md). Public APK distribution awaits the owner-configured permanent signing key and final device validation.

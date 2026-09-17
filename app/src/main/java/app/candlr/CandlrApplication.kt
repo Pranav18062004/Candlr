@@ -20,6 +20,7 @@ class CandlrApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        reminders.ensureChannel()
         scope.launch {
             operations.withLock {
                 LaunchTheme.save(

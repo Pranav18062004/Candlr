@@ -25,3 +25,20 @@ One draft photo reference is persisted locally so an Android-restored editor can
 The launch-theme mirror and draft reference are private local preferences, excluded from automatic backup along with the rest of the app. They add no cloud service or network dependency.
 
 See [VALIDATION.md](VALIDATION.md) for executed checks and remaining device testing.
+
+## Follow-up release review
+
+The 1080×2400 screenshots exceeded Play's mandatory maximum 2:1 ratio. They were recaptured from a 1080×1920 emulator, exported as RGB PNG, and visually checked. `store_assets.py` now asserts count, dimensions, ratio, and absence of alpha. Four 9:16 images are the stronger promotional recommendation, not the general minimum: Google's basic listing requirement is two screenshots. [Official requirements](https://support.google.com/googleplay/android-developer/answer/9866151?hl=en-GB).
+
+- Calendar clicks and selected-date semantics now belong to the whole day cell, independently of the circular highlight. Cells have a minimum 48 dp width and grow with font-scaled line height. On narrow displays the grid scrolls horizontally instead of shrinking targets or clipping text/dots.
+- Save, Cancel, and confirmed discard hide the sheet before removing its composition. Save still waits for successful persistence; dirty scrim/Back/drag dismissal remains guarded.
+- Photo pruning only runs for photo-affecting queued operations and startup, not bookmark toggles, preference changes, exports, or resume rescheduling.
+- The notification channel is created at application startup and idempotently before schedule/delivery, including when reminders or notification permission are disabled.
+- Settings shows the existing restore-recovery explanation.
+- Photo selection uses AndroidX `PickVisualMedia` with its system fallback for older devices. This is a platform improvement; `GetContent` was not a Play rejection condition.
+- `hasFragileUserData` offers Android's optional keep-data uninstall behavior on Android 10+. The privacy text explains that keeping data prevents complete erasure. This flag is also not a Play submission requirement. The two intentional `commit()` calls remain unchanged.
+- The previous GitHub CI run failed before building because `sdkmanager` was absent from PATH. The workflow now uses its explicit Android SDK path.
+
+The review's claim that the accessibility scanner necessarily flags every undersized cell was too definite: [Compose expands small touch regions automatically](https://developer.android.com/develop/ui/compose/accessibility/api-defaults), and scan results depend on actual bounds/device configuration. Explicitly sized, non-overlapping cells now remove that ambiguity.
+
+Signing is still a release dependency. The owner elected to configure their own permanent key. A GitHub draft and certificate-verifying release build script are prepared; no debug APK is relabeled as a production release. See [GITHUB_RELEASE.md](GITHUB_RELEASE.md).

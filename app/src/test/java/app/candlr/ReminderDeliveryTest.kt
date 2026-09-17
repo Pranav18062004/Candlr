@@ -38,6 +38,17 @@ class ReminderDeliveryTest {
     }
 
     @Test
+    fun channelExistsBeforeAnyReminderAndKeepsUserSettings() = runBlocking {
+        db.birthdays().putPreferences(Preferences(reminders = false))
+        scheduler.schedule(now)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        assertNotNull(manager.getNotificationChannel("birthdays"))
+        assertEquals(0, manager.activeNotifications.size)
+        scheduler.ensureChannel()
+        assertEquals(1, manager.notificationChannels.size)
+    }
+
+    @Test
     fun deliversOnceAndRecordsOccurrence() = runBlocking {
         scheduler.deliver(now)
         assertEquals(1, db.birthdays().delivered("${person.id}:2026-09-16:0"))

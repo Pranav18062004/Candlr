@@ -21,6 +21,8 @@ New personal accounts currently require at least **12 testers opted in continuou
 
 Sources checked 17 September 2026: [personal-account testing requirements](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en), [target API requirements](https://support.google.com/googleplay/android-developer/answer/11926878?hl=en). The current new-app target requirement is API 36; this project targets 36 while supporting API 26+.
 
+For GitHub APK distribution and the important distinction between upload and app signing keys, see [GITHUB_RELEASE.md](GITHUB_RELEASE.md).
+
 ## Configure an upload key
 
 Create an **upload key**, preferably with Android Studio's Generate Signed Bundle / APK wizard. Enroll in Play App Signing when creating the Play release; let Google manage the app signing key if that is your chosen setup. Store the upload keystore and passwords outside this repository, with secure backups. Do not reuse a company key or the preview debug certificate.
@@ -45,7 +47,7 @@ Check the bundle signature using JDK `jarsigner -verify -verbose -certs`. Confir
 ## Play Console forms
 
 1. Create an app named Candlr, default language English, app rather than game, free, with no ads. Suggested category: Tools. The owner must choose the actual target age groups and countries; do not select children simply because birthday records can describe children.
-2. Paste the supplied short and full descriptions. Add the support email, 512×512 icon, 1024×500 feature graphic, and at least two reviewed phone screenshots. See [official asset requirements](https://support.google.com/googleplay/android-developer/answer/9866151?hl=en).
+2. Paste the supplied short and full descriptions. Add the support email, 512Ã—512 icon, 1024Ã—500 feature graphic, and the four reviewed 1080?1920 RGB phone screenshots. The mandatory screenshot ratio limit is 2:1; four 9:16 screenshots meet the stronger promotional recommendation. See [official asset requirements](https://support.google.com/googleplay/android-developer/answer/9866151?hl=en).
 3. Host `docs/privacy/index.html` on a stable, public HTTPS URL, test it signed out, and enter that URL. No policy site has been published by this task. The in-app policy is already available offline. All apps need a public privacy policy: [Google's User Data policy](https://support.google.com/googleplay/android-developer/answer/10144311?hl=en).
 4. Data safety: the current app code does not collect or share data off the device. It has no network permission or collecting SDK. User-initiated exports go to an Android file provider selected by the user; review the final form wording and its exceptions against [Google's Data safety guidance](https://support.google.com/googleplay/android-developer/answer/10787469?hl=en). Do not mark account deletion as an app feature: the app creates no accounts. Users can erase all app data through Android storage settings and delete exported files separately.
 5. App access: every feature is available without login, a subscription, or credentials. Give reviewers basic instructions to add a birthday, change theme, and export/restore a backup.

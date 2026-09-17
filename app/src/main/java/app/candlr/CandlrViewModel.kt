@@ -36,6 +36,7 @@ class CandlrViewModel(application: Application) : AndroidViewModel(application) 
     private data class Work(
         val visible: Boolean,
         val reportError: Boolean,
+        val cleanPhotos: Boolean,
         val block: suspend () -> Unit,
     )
 
@@ -51,7 +52,8 @@ class CandlrViewModel(application: Application) : AndroidViewModel(application) 
                             try {
                                 work.block()
                             } finally {
-                                app.photos.prune(dao.all().mapNotNull { it.photo }.toSet())
+                                if (work.cleanPhotos)
+                                    app.photos.prune(dao.all().mapNotNull { it.photo }.toSet())
                             }
                         }
                     }
@@ -71,36 +73,41 @@ class CandlrViewModel(application: Application) : AndroidViewModel(application) 
     private fun operation(
         visible: Boolean = true,
         reportError: Boolean = true,
+        cleanPhotos: Boolean = false,
         block: suspend () -> Unit,
     ) {
         if (visible) {
             pendingVisible++
             busy.value = true
         }
-        check(queue.trySend(Work(visible, reportError, block)).isSuccess)
+        check(queue.trySend(Work(visible, reportError, cleanPhotos, block)).isSuccess)
     }
 
     fun toggleFavorite(id: String) = operation(visible = false) { dao.toggleFavorite(id) }
 
-    fun pinDraft(photo: String?) = operation(visible = false) { app.photos.pinDraft(photo) }
+    fun pinDraft(photo: String?) =
+        operation(visible = false, cleanPhotos = true) { app.photos.pinDraft(photo) }
 
     fun releaseDraft() = pinDraft(null)
 
-    fun releaseUndo(id: String) = operation(visible = false) { app.photos.releaseUndo(id) }
+    fun releaseUndo(id: String) =
+        operation(visible = false, cleanPhotos = true) { app.photos.releaseUndo(id) }
 
-    fun save(person: Birthday, onSuccess: () -> Unit) = operation {
-        person.validate()
-        dao.put(person)
-        app.reminders.schedule()
-        withContext(Dispatchers.Main) { onSuccess() }
-    }
+    fun save(person: Birthday, onSuccess: () -> Unit) =
+        operation(cleanPhotos = true) {
+            person.validate()
+            dao.put(person)
+            app.reminders.schedule()
+            withContext(Dispatchers.Main) { onSuccess() }
+        }
 
-    fun delete(person: Birthday, onSuccess: () -> Unit) = operation {
-        app.photos.pinUndo(person.id, person.photo)
-        dao.delete(person.id)
-        app.reminders.schedule()
-        withContext(Dispatchers.Main) { onSuccess() }
-    }
+    fun delete(person: Birthday, onSuccess: () -> Unit) =
+        operation(cleanPhotos = true) {
+            app.photos.pinUndo(person.id, person.photo)
+            dao.delete(person.id)
+            app.reminders.schedule()
+            withContext(Dispatchers.Main) { onSuccess() }
+        }
 
     fun preferences(update: (Preferences) -> Preferences) =
         operation(visible = false) {
@@ -110,10 +117,11 @@ class CandlrViewModel(application: Application) : AndroidViewModel(application) 
             app.reminders.schedule()
         }
 
-    fun photo(uri: Uri, onSuccess: (String) -> Unit) = operation {
-        val name = app.photos.import(uri)
-        withContext(Dispatchers.Main) { onSuccess(name) }
-    }
+    fun photo(uri: Uri, onSuccess: (String) -> Unit) =
+        operation(cleanPhotos = true) {
+            val name = app.photos.import(uri)
+            withContext(Dispatchers.Main) { onSuccess(name) }
+        }
 
     fun export(uri: Uri, onSuccess: () -> Unit) = operation {
         val snapshot = app.backup.snapshot()
@@ -131,7 +139,7 @@ class CandlrViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun restore(replace: Boolean, overwrite: Boolean, onSuccess: (RestoreResult) -> Unit) =
-        operation {
+        operation(cleanPhotos = true) {
             val contents = restorePreview.value ?: (throw BookException(BookError.CHOOSE_BACKUP))
             val result = app.backup.restore(contents, replace, overwrite)
             LaunchTheme.save(app, (dao.preferences() ?: Preferences()).theme)

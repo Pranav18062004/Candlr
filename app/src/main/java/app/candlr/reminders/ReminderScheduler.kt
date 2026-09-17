@@ -56,7 +56,18 @@ class ReminderScheduler(private val context: Context, private val db: CandlrData
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 
+    fun ensureChannel() {
+        val channel =
+            NotificationChannel(
+                "birthdays",
+                context.getString(R.string.notification_channel),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            )
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
     suspend fun schedule(now: ZonedDateTime = ZonedDateTime.now()) {
+        ensureChannel()
         manager.cancel(alarmIntent)
         val preferences = db.birthdays().preferences() ?: Preferences()
         if (
@@ -78,6 +89,7 @@ class ReminderScheduler(private val context: Context, private val db: CandlrData
     }
 
     suspend fun deliver(now: ZonedDateTime = ZonedDateTime.now()) {
+        ensureChannel()
         val dao = db.birthdays()
         val preferences = dao.preferences() ?: Preferences()
         val notifications = NotificationManagerCompat.from(context)
@@ -90,13 +102,6 @@ class ReminderScheduler(private val context: Context, private val db: CandlrData
                 ) != PackageManager.PERMISSION_GRANTED
         )
             return
-        val channel =
-            NotificationChannel(
-                "birthdays",
-                context.getString(R.string.notification_channel),
-                NotificationManager.IMPORTANCE_DEFAULT,
-            )
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         val due =
             occurrences(dao.all(), preferences, now.toLocalDate()).filter {
                 it.date == now.toLocalDate() &&
